@@ -6,17 +6,19 @@ pipeline {
     }
 
     environment {
-        APP_NAME        = "register-app-pipeline"
-        RELEASE         = "1.0.0"
-        DOCKER_USER     = "ataullahsaadi"
-        DOCKER_CRED_ID  = 'docker-hub'
-        IMAGE_NAME      = "${DOCKER_USER}/${APP_NAME}"
-        IMAGE_TAG       = "${RELEASE}-${BUILD_NUMBER}"
-        SONAR_HOST_URL = "http://13.206.46.152:9000"
-        JFROG_URL = "http://13.206.46.152:8082/artifactory"
+        APP_NAME           = "register-app-pipeline"
+        RELEASE            = "1.0.0"
+        DOCKER_USER        = "ataullahsaadi"
+        DOCKER_CRED_ID     = 'docker-hub'
+        IMAGE_NAME         = "${DOCKER_USER}/${APP_NAME}"
+        IMAGE_TAG          = "${RELEASE}-${BUILD_NUMBER}"
+        SONAR_HOST_URL     = "http://13.206.46.152:9000"
+        JFROG_URL          = "http://13.206.46.152:8082/artifactory"
         NOTIFICATION_EMAIL = "mdataullahmurtuza@gmail.com"
+    }
 
     stages {
+
         stage("Cleanup Workspace") {
             steps {
                 cleanWs()
@@ -25,7 +27,9 @@ pipeline {
 
         stage("Checkout from SCM") {
             steps {
-                git branch: 'main', credentialsId: 'github-token-auth', url: 'https://github.com/Mohammed-Ataullah/Jenkins-CICD-Major-Project.git'
+                git branch: 'main',
+                    credentialsId: 'github-token-auth',
+                    url: 'https://github.com/Mohammed-Ataullah/Jenkins-CICD-Major-Project.git'
             }
         }
 
@@ -44,48 +48,51 @@ pipeline {
         stage("SonarQube Analysis") {
             steps {
                 script {
-                    withSonarQubeEnv('SonarQube-token') { 
+                    withSonarQubeEnv('SonarQube-Token') {
                         sh "mvn sonar:sonar -Dsonar.host.url=${SONAR_HOST_URL}"
                     }
-                }    
+                }
             }
         }
 
         stage("Quality Gate") {
             steps {
                 script {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'SonarQube-token'
-                }    
+                    waitForQualityGate(
+                        abortPipeline: false,
+                        credentialsId: 'SonarQube-Token'
+                    )
+                }
             }
         }
 
         stage('Artifactory Configuration') {
             steps {
-                rtServer (
+                rtServer(
                     id: "jfrog-server",
                     url: "${JFROG_URL}",
                     credentialsId: "jfrog"
                 )
 
-                rtMavenDeployer (
+                rtMavenDeployer(
                     id: "MAVEN_DEPLOYER",
                     serverId: "jfrog-server",
                     releaseRepo: "libs-release-local",
                     snapshotRepo: "libs-snapshot-local"
                 )
 
-                rtMavenResolver (
+                rtMavenResolver(
                     id: "MAVEN_RESOLVER",
                     serverId: "jfrog-server",
                     releaseRepo: "libs-release",
                     snapshotRepo: "libs-snapshot"
-                )      
+                )
             }
         }
 
         stage('Deploy Artifacts') {
             steps {
-                rtMavenRun (
+                rtMavenRun(
                     tool: "Maven",
                     pom: 'webapp/pom.xml',
                     goals: 'clean install',
@@ -97,7 +104,7 @@ pipeline {
 
         stage('Publish Build Info') {
             steps {
-                rtPublishBuildInfo (
+                rtPublishBuildInfo(
                     serverId: "jfrog-server"
                 )
             }
@@ -131,14 +138,15 @@ pipeline {
                 }
             }
         }
-    }
 
- 
         stage('Deploy to Kubernetes') {
             steps {
                 script {
                     dir('kubernetes') {
-                        kubeconfig(credentialsId: 'kubernetes', serverUrl: '') {
+                        kubeconfig(
+                            credentialsId: 'kubernetes',
+                            serverUrl: ''
+                        ) {
                             sh 'kubectl apply -f regapp-deployment.yml'
                             sh 'kubectl apply -f regapp-service.yml'
                             sh 'kubectl rollout restart deployment.apps/regapp-deployment'
@@ -151,17 +159,18 @@ pipeline {
 
     post {
         failure {
-            emailext (
-                body: '''${SCRIPT, template="groovy-html.template"}''', 
-                subject: "${env.JOB_NAME} - Build # ${env.BUILD_NUMBER} - Failed", 
+            emailext(
+                body: '''${SCRIPT, template="groovy-html.template"}''',
+                subject: "${env.JOB_NAME} - Build # ${env.BUILD_NUMBER} - Failed",
                 mimeType: 'text/html',
                 to: "${NOTIFICATION_EMAIL}"
             )
         }
+
         success {
-            emailext (
-                body: '''${SCRIPT, template="groovy-html.template"}''', 
-                subject: "${env.JOB_NAME} - Build # ${env.BUILD_NUMBER} - Successful", 
+            emailext(
+                body: '''${SCRIPT, template="groovy-html.template"}''',
+                subject: "${env.JOB_NAME} - Build # ${env.BUILD_NUMBER} - Successful",
                 mimeType: 'text/html',
                 to: "${NOTIFICATION_EMAIL}"
             )
