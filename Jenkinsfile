@@ -8,15 +8,13 @@ pipeline {
     environment {
         APP_NAME        = "register-app-pipeline"
         RELEASE         = "1.0.0"
-        DOCKER_USER     = "faizan715"
+        DOCKER_USER     = "ataullahsaadi"
         DOCKER_CRED_ID  = 'docker-hub'
         IMAGE_NAME      = "${DOCKER_USER}/${APP_NAME}"
         IMAGE_TAG       = "${RELEASE}-${BUILD_NUMBER}"
-        
-        // Updated Server Endpoints (Use 172.31.8.119 if Jenkins runs on the same server)
-        SONAR_URL       = "http://13.206.46.152:9000"
-        JFROG_URL       = "http://13.206.46.152:8081/artifactory"
-    }
+        SONAR_HOST_URL = "http://13.206.46.152:9000"
+        JFROG_URL = "http://13.206.46.152:8082/artifactory"
+        NOTIFICATION_EMAIL = "mdataullahmurtuza@gmail.com"
 
     stages {
         stage("Cleanup Workspace") {
@@ -27,7 +25,7 @@ pipeline {
 
         stage("Checkout from SCM") {
             steps {
-                git branch: 'main', credentialsId: 'github-token-auth', url: 'https://github.com/faizan715/Automated-CICD-App'
+                git branch: 'main', credentialsId: 'github-token-auth', url: 'https://github.com/Mohammed-Ataullah/Jenkins-CICD-Major-Project.git'
             }
         }
 
@@ -47,7 +45,7 @@ pipeline {
             steps {
                 script {
                     withSonarQubeEnv('SonarQube-token') { 
-                        sh "mvn sonar:sonar -Dsonar.host.url=${SONAR_URL}"
+                        sh "mvn sonar:sonar -Dsonar.host.url=${SONAR_HOST_URL}"
                     }
                 }    
             }
@@ -135,13 +133,37 @@ pipeline {
         }
     }
 
+ 
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    dir('kubernetes') {
+                        kubeconfig(credentialsId: 'kubernetes', serverUrl: '') {
+                            sh 'kubectl apply -f regapp-deployment.yml'
+                            sh 'kubectl apply -f regapp-service.yml'
+                            sh 'kubectl rollout restart deployment.apps/regapp-deployment'
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     post {
         failure {
             emailext (
                 body: '''${SCRIPT, template="groovy-html.template"}''', 
                 subject: "${env.JOB_NAME} - Build # ${env.BUILD_NUMBER} - Failed", 
                 mimeType: 'text/html',
-                to: "ashfaque.s510@gmail.com"
+                to: "${NOTIFICATION_EMAIL}"
+            )
+        }
+        success {
+            emailext (
+                body: '''${SCRIPT, template="groovy-html.template"}''', 
+                subject: "${env.JOB_NAME} - Build # ${env.BUILD_NUMBER} - Successful", 
+                mimeType: 'text/html',
+                to: "${NOTIFICATION_EMAIL}"
             )
         }
     }
