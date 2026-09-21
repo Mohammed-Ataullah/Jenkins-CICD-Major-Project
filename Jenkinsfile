@@ -140,14 +140,11 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 script {
-                    dir('kubernetes') {
-                        kubeconfig(
-                            credentialsId: 'kubernetes',
-                            serverUrl: ''
-                        ) {
-                            sh 'kubectl apply -f regapp-deployment.yml'
+                    dir('Kubernete') {
+                        withKubeConfig(credentialsId: 'kubernetes') {
+                            sh 'kubectl apply -f regapp-deploy.yml'
                             sh 'kubectl apply -f regapp-service.yml'
-                            sh 'kubectl rollout restart deployment.apps/regapp-deployment'
+                            sh 'kubectl rollout restart deployment/regapp-deployment'
                         }
                     }
                 }
